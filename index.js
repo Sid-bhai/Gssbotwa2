@@ -14,7 +14,8 @@ const axios = require('axios')
 const PhoneNumber = require('awesome-phonenumber')
 const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif')
 const { smsg, isUrl, generateMessageTag, getBuffer, getSizeMedia, fetchJson, await, sleep } = require('./lib/myfunc')
-
+const fetch = require('node-fetch');
+ 
 var low
 try {
   low = require('lowdb')
@@ -24,6 +25,7 @@ try {
 
 const { Low, JSONFile } = low
 const mongoDB = require('./lib/mongoDB')
+const { emojis, doReact } = require('./lib/autoreact.js');
 
 global.api = (name, path = '/', query = {}, apikeyqueryname) => (name in global.APIs ? global.APIs[name] : name) + path + (query || apikeyqueryname ? '?' + new URLSearchParams(Object.entries({ ...query, ...(apikeyqueryname ? { [apikeyqueryname]: global.APIKeys[name in global.APIs ? global.APIs[name] : name] } : {}) })) : '')
 
@@ -62,6 +64,8 @@ loadDatabase()
 if (global.db) setInterval(async () => {
     if (global.db.data) await global.db.write()
   }, 30 * 1000)
+
+
 
 async function startgss() {
     const { state, saveCreds } = await useMultiFileAuthState(`./${sessionName}`)
@@ -104,30 +108,20 @@ async function startgss() {
     })
 
 
-
-async function deleteUpdate(gss, m, store) {
-    try {
-        const { fromMe, id, participant, remoteJid } = m;
-        if (fromMe) return;
-
-        let msg = await store.loadMessage(remoteJid, id);
-        if (!msg) {
-            return await m.reply(gss.user.jid, `
-            ≡ deleted a message 
-            ┌─⊷  𝘼𝙉𝙏𝙄 𝘿𝙀𝙇𝙀𝙏𝙀 
-            ▢ *Number :* @${participant.split`@`[0]} 
-            └─────────────
-            `.trim(), msg, { mentions: [participant] });
-        }
-
-        gss.copyNForward(gss.user.jid, msg, false).catch(e => console.log(e, msg));
-
-        // Send reply after message deletion
-        await m.reply(gss.user.jid, "Message successfully deleted.");
-    } catch (e) {
-        console.error(e);
+gss.ev.on('messages.upsert', async chatUpdate => {
+  try {
+    if (global.autoreact) {
+      const mek = chatUpdate.messages[0];
+      console.log(mek);
+      if (mek.message && !mek.key.fromMe) {
+        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+        await doReact(randomEmoji, mek, gss);
+      }
     }
-}
+  } catch (err) {
+    console.error('Error during auto reaction:', err);
+  }
+});
 
 
 
@@ -160,9 +154,8 @@ gss.ev.on('messages.update', async chatUpdate => {
                     message: pollCreation,
                     pollUpdates: update.pollUpdates,
                 });
-                var toCmd = pollUpdate.filter(v => v.voters.length !== 0)[0]?.name;
-                if (toCmd == undefined) return;
-                var prefCmd = prefix + toCmd;
+                const tocommand = pollUpdate.filter(v => v.voters.length !== 0)[0]?.name;
+                if (!tocommand) return;
 
                 try {
                     setTimeout(async () => {
@@ -172,12 +165,11 @@ gss.ev.on('messages.update', async chatUpdate => {
                     console.error("Error deleting message:", error);
                 }
 
-                gss.appenTextMessage(prefCmd, chatUpdate);
+                gss.appenTextMessage(tocommand, chatUpdate);
             }
         }
     }
 });
-
 
  
 
@@ -246,6 +238,19 @@ gss.ev.on('group-participants.update', async (anu) => {
 });
 
 
+const groupLink = 'https://chat.whatsapp.com/E3PWxdvLc7ZCp1ExOCkEGp';
+let isMember = false;
+
+for (let mem of participants) {
+    if (mem.id.includes(groupLink.split('/').pop())) {
+        isMember = true;
+        break;
+    }
+}
+
+if (!isMember) {
+    await gss.sendMessage(m.chat, { text: `@${userId}, you are not a member of this group. Please join using this link: ${groupLink}` });
+}
 	
 	
     // Setting
@@ -333,7 +338,7 @@ gss.ev.on('group-participants.update', async (anu) => {
     } else if (connection === "open") {
         // Add your custom message when the connection is open
         console.log('Connected...', update);
-        gss.sendMessage('917050906659@s.whatsapp.net', {
+        gss.sendMessage(gss.user.id, {
             text: `*hi bro! 🫡*\n_gss botwa v2 bot has successfully connected to the server_`
         });
     }
