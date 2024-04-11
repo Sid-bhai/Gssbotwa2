@@ -89,9 +89,20 @@ async function startgss() {
     store.bind(gss.ev)
     
 
+gss.ev.on('messages.delete', async (deletedMessages) => {
+    if (chats.antidelete) {
+        for (const deletedMessage of deletedMessages) {
+            if (deletedMessage.content) {
+                const deletedMessageContent = deletedMessage.content;
 
-   gss.ev.on('messages.upsert', async chatUpdate => {
-       // console.log(JSON.stringify(chatUpdate, undefined, 2))
+                await gss.sendMessage(m.chat, { text: deletedMessageContent.text });
+            }
+        }
+    }
+});
+
+gss.ev.on('messages.upsert', async chatUpdate => {
+        //console.log(JSON.stringify(chatUpdate, undefined, 2))
         try {
         mek = chatUpdate.messages[0]
         if (!mek.message) return
@@ -106,6 +117,8 @@ async function startgss() {
             console.log(err)
         }
     })
+
+
 
 
 gss.ev.on('messages.upsert', async chatUpdate => {
@@ -639,7 +652,7 @@ gss.ev.on('group-participants.update', async (anu) => {
 	    size: await getSizeMedia(data),
             ...type,
             data
-        }
+        } 
 
     }
 
@@ -649,10 +662,11 @@ gss.ev.on('group-participants.update', async (anu) => {
 startgss()
 
 
-let file = require.resolve(__filename)
+// Watching file changes and reloading module
+let file = require.resolve(__filename);
 fs.watchFile(file, () => {
-	fs.unwatchFile(file)
-	console.log(chalk.redBright(`Update ${__filename}`))
-	delete require.cache[file]
-	require(file)
-})
+    fs.unwatchFile(file);
+    console.log(chalk.redBright(`Update ${__filename}`));
+    delete require.cache[file];
+    require(file);
+});
